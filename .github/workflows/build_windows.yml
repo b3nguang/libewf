@@ -100,21 +100,20 @@ jobs:
         New-Item -ItemType Directory -Force -Path $headerDst | Out-Null
         Get-ChildItem -Path $headerSrc -Filter "*.h" -ErrorAction SilentlyContinue |
           ForEach-Object { Copy-Item $_.FullName -Destination "$headerDst\$($_.Name)" -Force }
-        # Copy libs: dokan/msvscpp/<config>/dokan.lib  ($(ConfigurationName) = Release / VSDebug)
+        # Copy libs to dokan/<platform>/Release/ (matches user's manual fix).
+        # vcxproj lib path: ../../../dokan/Win32/$(Configuration)/dokan2.lib
         foreach ($platform in @("Win32", "x64")) {
           $libSrc = "$dokanyRoot\dokan\$platform\Release\dokan2.lib"
           $dllSrc = "$dokanyRoot\dokan\$platform\Release\dokan2.dll"
-          foreach ($config in @("Release", "VSDebug")) {
-            $destDir = "$legacyRoot\msvscpp\$config"
-            New-Item -ItemType Directory -Force -Path $destDir | Out-Null
-            if (Test-Path $libSrc) {
-              Copy-Item $libSrc -Destination "$destDir\dokan.lib"  -Force
-              Copy-Item $libSrc -Destination "$destDir\dokan2.lib" -Force
-            }
-            if (Test-Path $dllSrc) {
-              Copy-Item $dllSrc -Destination "$destDir\dokan.dll"  -Force
-              Copy-Item $dllSrc -Destination "$destDir\dokan2.dll" -Force
-            }
+          $destDir = "$legacyRoot\$platform\Release"
+          New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+          if (Test-Path $libSrc) {
+            Copy-Item $libSrc -Destination "$destDir\dokan2.lib" -Force
+            Copy-Item $libSrc -Destination "$destDir\dokan.lib"  -Force
+          }
+          if (Test-Path $dllSrc) {
+            Copy-Item $dllSrc -Destination "$destDir\dokan2.dll" -Force
+            Copy-Item $dllSrc -Destination "$destDir\dokan.dll"  -Force
           }
           Write-Host "Legacy dokan tree created for $platform"
         }
@@ -176,6 +175,35 @@ jobs:
           Write-Host "Copied $($dokanDll.Name) to $outputDir"
         } else {
           Write-Warning "dokan DLL not found; ewfmount may not run without it"
+        }
+
+    - name: Patch and rebuild ewfmount
+      working-directory: libewf
+      shell: pwsh
+      run: |
+        $vsDir = "vs${{ matrix.vs_version }}"
+        $conf  = "${{ matrix.configuration }}"
+        $plat  = "${{ matrix.platform }}"
+        $proj  = "$vsDir\ewfmount\ewfmount.vcxproj"
+        if (-not (Test-Path $proj)) {
+          Write-Warning "ewfmount.vcxproj not generated - skipping patch"
+          exit 0
+        }
+        $content = Get-Content $proj -Raw
+        # Patch lib reference: legacy msvscpp path → Win32/<plat>/$(Configuration)/dokan2.lib
+        # Use simple string replace to avoid PowerShell/regex $ escaping issues.
+        foreach ($old in @(
+          '..\..\..\dokan\msvscpp\$(ConfigurationName)\dokan.lib',
+          '..\..\..\dokan\msvscpp\$(Configuration)\dokan.lib'
+        )) {
+          $content = $content.Replace($old, "..\..\..\dokan\$plat\`$(Configuration)\dokan2.lib")
+        }
+        Set-Content $proj $content
+        Write-Host "Patched ewfmount.vcxproj lib path -> dokan\$plat\`$(Configuration)\dokan2.lib"
+        # Rebuild ewfmount explicitly with normal verbosity
+        $msbuild = (Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\*\MSBuild\Current\Bin\MSBuild.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+        if ($msbuild) {
+          & $msbuild /verbosity:normal /target:Rebuild "/property:Configuration=$conf,Platform=$plat,PlatformToolset=v143" $proj
         }
 
     - name: Diagnose ewfmount
