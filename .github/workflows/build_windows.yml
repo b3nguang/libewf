@@ -101,14 +101,22 @@ jobs:
       shell: pwsh
       run: |
         $PythonPath = (Get-Command python).Source | Split-Path
-        $Configuration = "${{ matrix.configuration }}"
-        if ($Configuration -eq "VSDebug") { $Configuration = "Debug" }
         .\build.ps1 `
           -VisualStudioVersion ${{ matrix.vs_version }} `
-          -Configuration $Configuration `
+          -Configuration ${{ matrix.configuration }} `
           -Platform ${{ matrix.platform }} `
           -PythonPath $PythonPath `
           -VSToolsOptions "${{ matrix.vs_tools_options }}"
+        $vsDir = "vs${{ matrix.vs_version }}"
+        $conf = "${{ matrix.configuration }}"
+        $plat = "${{ matrix.platform }}"
+        $outputDir = "${vsDir}\${conf}\${plat}"
+        if (-not (Test-Path $outputDir)) { $outputDir = "${vsDir}\${conf}" }
+        if (-not (Test-Path $outputDir)) {
+          Write-Error "Build output directory not found (${vsDir}\${conf}\${plat}). MSBuild may have failed silently."
+          exit 1
+        }
+        Write-Host "Build output directory: $outputDir"
 
     - name: Run tests
       working-directory: libewf
