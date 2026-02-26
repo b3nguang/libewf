@@ -249,4 +249,7 @@ jobs:
           libewf/vs${{ matrix.vs_version }}/${{ matrix.configuration }}/*.exe
           libewf/vs${{ matrix.vs_version }}/${{ matrix.configuration }}/*.dll
           libewf/vs${{ matrix.vs_version }}/${{ matrix.configuration }}/*.pdb
+          libewf/vs${{ matrix.vs_version }}/ewfmount/${{ matrix.configuration }}/${{ matrix.platform }}/*.exe
+          libewf/vs${{ matrix.vs_version }}/ewfmount/${{ matrix.configuration }}/${{ matrix.platform }}/*.dll
+          libewf/vs${{ matrix.vs_version }}/ewfmount/${{ matrix.configuration }}/${{ matrix.platform }}/*.pdb
         if-no-files-found: warn
