@@ -24,11 +24,6 @@ jobs:
           platform: 'x64'
           configuration: 'Release'
           vs_tools_options: '--extend-with-x64 --no-python-dll --with-dokany'
-        - target: 'vs2022-vsdebug'
-          vs_version: '2022'
-          platform: 'Win32'
-          configuration: 'VSDebug'
-          vs_tools_options: '--extend-with-x64 --no-python-dll --with-dokany'
         - target: 'vs2022-python'
           vs_version: '2022'
           platform: 'x64'
@@ -243,13 +238,10 @@ jobs:
       with:
         name: libewf-${{ matrix.target }}
         path: |
-          libewf/vs${{ matrix.vs_version }}/${{ matrix.configuration }}/${{ matrix.platform }}/*.exe
-          libewf/vs${{ matrix.vs_version }}/${{ matrix.configuration }}/${{ matrix.platform }}/*.dll
-          libewf/vs${{ matrix.vs_version }}/${{ matrix.configuration }}/${{ matrix.platform }}/*.pdb
-          libewf/vs${{ matrix.vs_version }}/${{ matrix.configuration }}/*.exe
-          libewf/vs${{ matrix.vs_version }}/${{ matrix.configuration }}/*.dll
-          libewf/vs${{ matrix.vs_version }}/${{ matrix.configuration }}/*.pdb
-          libewf/vs${{ matrix.vs_version }}/ewfmount/${{ matrix.configuration }}/${{ matrix.platform }}/*.exe
-          libewf/vs${{ matrix.vs_version }}/ewfmount/${{ matrix.configuration }}/${{ matrix.platform }}/*.dll
-          libewf/vs${{ matrix.vs_version }}/ewfmount/${{ matrix.configuration }}/${{ matrix.platform }}/*.pdb
+          libewf/vs${{ matrix.vs_version }}/**/${{ matrix.configuration }}/${{ matrix.platform }}/*.exe
+          libewf/vs${{ matrix.vs_version }}/**/${{ matrix.configuration }}/${{ matrix.platform }}/*.dll
+          libewf/vs${{ matrix.vs_version }}/**/${{ matrix.configuration }}/${{ matrix.platform }}/*.pdb
+          libewf/vs${{ matrix.vs_version }}/**/${{ matrix.configuration }}/*.exe
+          libewf/vs${{ matrix.vs_version }}/**/${{ matrix.configuration }}/*.dll
+          libewf/vs${{ matrix.vs_version }}/**/${{ matrix.configuration }}/*.pdb
         if-no-files-found: warn
