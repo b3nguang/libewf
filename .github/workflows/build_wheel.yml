@@ -1,6 +1,6 @@
 # Build Python wheels from source using cibuildwheel.
 name: build_wheels
-on: [push, pull_request]
+on: workflow_dispatch
 permissions: read-all
 jobs:
   build_wheels_linux:

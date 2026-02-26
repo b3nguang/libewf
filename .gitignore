@@ -248,3 +248,5 @@ stamp-h[1-9]
 /libsmdev
 /libsmraw
 /libuna
+
+.vscode

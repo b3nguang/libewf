@@ -1,6 +1,6 @@
 # Build from source on FreeBSD.
 name: build_freebsd
-on: [push]
+on: workflow_dispatch
 permissions: read-all
 jobs:
   build_freebsd:

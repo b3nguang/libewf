@@ -1,8 +1,6 @@
 # Build OSSFuzz fuzz targets from source.
 name: build_ossfuzz
-on:
-  push:
-    branches: [main]
+on: workflow_dispatch
 permissions: read-all
 jobs:
   build_ossfuzz:

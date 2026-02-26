@@ -1,6 +1,6 @@
 # Build from source.
 name: build_macos
-on: [push, pull_request]
+on: workflow_dispatch
 permissions: read-all
 jobs:
   build_macos:
