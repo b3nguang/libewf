@@ -28,7 +28,7 @@ Function ExtractZip($Filename)
 }
 
 $Filename = "${pwd}\zlib131.zip"
-$Url = "https://zlib.net/zlib131.zip"
+$Url = "https://github.com/madler/zlib/releases/download/v1.3.1/zlib131.zip"
 $ExtractedPath = "zlib-1.3.1"
 $DestinationPath = "..\zlib"
 
