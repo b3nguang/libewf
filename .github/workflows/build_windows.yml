@@ -77,7 +77,10 @@ jobs:
         .\syncdokan.ps1
         $vcxproj = "${{ github.workspace }}\dokany\dokan\dokan.vcxproj"
         if (Test-Path $vcxproj) {
-          (Get-Content $vcxproj -Raw) -Replace '<PlatformToolset>v14[0-9]</PlatformToolset>', '<PlatformToolset>v143</PlatformToolset>' | Set-Content $vcxproj
+          $content = Get-Content $vcxproj -Raw
+          $content = $content -Replace '<PlatformToolset>v14[0-9]</PlatformToolset>', '<PlatformToolset>v143</PlatformToolset>'
+          $content = $content -Replace '<WindowsTargetPlatformVersion>[^<]+</WindowsTargetPlatformVersion>', '<WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>'
+          Set-Content $vcxproj $content
         }
         $env:APPVEYOR = "True"
         .\builddokan.ps1 -Configuration Release -Platform Win32
