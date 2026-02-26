@@ -85,6 +85,37 @@ jobs:
         $env:APPVEYOR = "True"
         .\builddokan.ps1 -Configuration Release -Platform Win32
         .\builddokan.ps1 -Configuration Release -Platform x64
+        # Normalize dokan lib/dll to all candidate paths vstools --with-dokany may reference.
+        # Dokany v2.x produces dokan2.lib/dokan2.dll; we also create dokan.lib aliases.
+        $dokanyRoot = "${{ github.workspace }}\dokany"
+        Write-Host "=== Dokan build output ==="
+        Get-ChildItem -Path $dokanyRoot -Recurse -Include "dokan*.lib","dokan*.dll" -ErrorAction SilentlyContinue |
+          Select-Object -ExpandProperty FullName
+        foreach ($platform in @("Win32", "x64")) {
+          $lib = Get-ChildItem -Path $dokanyRoot -Recurse -Filter "dokan*.lib" -ErrorAction SilentlyContinue |
+                   Where-Object { $_.FullName -match [regex]::Escape($platform) } |
+                   Select-Object -First 1
+          if (-not $lib) {
+            $lib = Get-ChildItem -Path $dokanyRoot -Recurse -Filter "dokan*.lib" -ErrorAction SilentlyContinue |
+                     Select-Object -First 1
+          }
+          if ($lib) {
+            foreach ($destDir in @(
+              "$dokanyRoot\$platform\Release",
+              "$dokanyRoot\dokan\$platform\Release",
+              "$dokanyRoot\$platform\Release\$platform"
+            )) {
+              New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+              Copy-Item $lib.FullName -Destination "$destDir\$($lib.Name)" -Force
+              if ($lib.Name -ne "dokan.lib") {
+                Copy-Item $lib.FullName -Destination "$destDir\dokan.lib" -Force
+              }
+              Write-Host "Staged $($lib.Name) -> $destDir"
+            }
+          } else {
+            Write-Warning "dokan.lib not found for platform $platform"
+          }
+        }
 
     - name: Sync dependency libraries
       working-directory: libewf
@@ -117,6 +148,21 @@ jobs:
           exit 1
         }
         Write-Host "Build output directory: $outputDir"
+        # Copy dokan2.dll alongside ewfmount.exe so it is runnable and included in the artifact
+        $dokanyRoot = "${{ github.workspace }}\dokany"
+        $dokanDll = Get-ChildItem -Path $dokanyRoot -Recurse -Filter "dokan*.dll" -ErrorAction SilentlyContinue |
+                      Where-Object { $_.FullName -match [regex]::Escape($plat) } |
+                      Select-Object -First 1
+        if (-not $dokanDll) {
+          $dokanDll = Get-ChildItem -Path $dokanyRoot -Recurse -Filter "dokan*.dll" -ErrorAction SilentlyContinue |
+                        Select-Object -First 1
+        }
+        if ($dokanDll) {
+          Copy-Item $dokanDll.FullName -Destination "$outputDir\$($dokanDll.Name)" -Force
+          Write-Host "Copied $($dokanDll.Name) to $outputDir"
+        } else {
+          Write-Warning "dokan DLL not found; ewfmount may not run without it"
+        }
 
     - name: Run tests
       working-directory: libewf
