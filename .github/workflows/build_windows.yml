@@ -85,42 +85,49 @@ jobs:
         $env:APPVEYOR = "True"
         .\builddokan.ps1 -Configuration Release -Platform Win32
         .\builddokan.ps1 -Configuration Release -Platform x64
-        # Normalize dokan lib/dll to all candidate paths vstools --with-dokany may reference.
-        # Dokany v2.x produces dokan2.lib/dokan2.dll; we also create dokan.lib aliases.
         $dokanyRoot = "${{ github.workspace }}\dokany"
         Write-Host "=== Dokan build output ==="
         Get-ChildItem -Path $dokanyRoot -Recurse -Include "dokan*.lib","dokan*.dll" -ErrorAction SilentlyContinue |
           Select-Object -ExpandProperty FullName
+
+        # Strategy A: create legacy 'dokan' tree at $WORKSPACE/dokan so that original
+        # msvscpp paths (../../../dokan/...) still resolve after vstools conversion when
+        # --with-dokany is not recognised and paths are left unchanged.
+        $legacyRoot = "${{ github.workspace }}\dokan"
+        # Copy headers: dokan/dokan/*.h
+        $headerSrc = "$dokanyRoot\dokan"
+        $headerDst = "$legacyRoot\dokan"
+        New-Item -ItemType Directory -Force -Path $headerDst | Out-Null
+        Get-ChildItem -Path $headerSrc -Filter "*.h" -ErrorAction SilentlyContinue |
+          ForEach-Object { Copy-Item $_.FullName -Destination "$headerDst\$($_.Name)" -Force }
+        # Copy libs: dokan/msvscpp/<config>/dokan.lib  ($(ConfigurationName) = Release / VSDebug)
         foreach ($platform in @("Win32", "x64")) {
-          $lib = Get-ChildItem -Path $dokanyRoot -Recurse -Filter "dokan*.lib" -ErrorAction SilentlyContinue |
-                   Where-Object { $_.FullName -match [regex]::Escape($platform) } |
-                   Select-Object -First 1
-          if (-not $lib) {
-            $lib = Get-ChildItem -Path $dokanyRoot -Recurse -Filter "dokan*.lib" -ErrorAction SilentlyContinue |
-                     Select-Object -First 1
-          }
-          if ($lib) {
-            foreach ($destDir in @(
-              "$dokanyRoot\$platform\Release",
-              "$dokanyRoot\dokan\$platform\Release",
-              "$dokanyRoot\$platform\Release\$platform"
-            )) {
-              New-Item -ItemType Directory -Force -Path $destDir | Out-Null
-              $destPath = [System.IO.Path]::GetFullPath("$destDir\$($lib.Name)")
-              $srcPath  = [System.IO.Path]::GetFullPath($lib.FullName)
-              if ($srcPath -ne $destPath) {
-                Copy-Item $srcPath -Destination $destPath -Force
-              }
-              if ($lib.Name -ne "dokan.lib") {
-                $aliasPath = [System.IO.Path]::GetFullPath("$destDir\dokan.lib")
-                if ($srcPath -ne $aliasPath) {
-                  Copy-Item $srcPath -Destination $aliasPath -Force
-                }
-              }
-              Write-Host "Staged $($lib.Name) -> $destDir"
+          $libSrc = "$dokanyRoot\dokan\$platform\Release\dokan2.lib"
+          $dllSrc = "$dokanyRoot\dokan\$platform\Release\dokan2.dll"
+          foreach ($config in @("Release", "VSDebug")) {
+            $destDir = "$legacyRoot\msvscpp\$config"
+            New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+            if (Test-Path $libSrc) {
+              Copy-Item $libSrc -Destination "$destDir\dokan.lib"  -Force
+              Copy-Item $libSrc -Destination "$destDir\dokan2.lib" -Force
             }
-          } else {
-            Write-Warning "dokan.lib not found for platform $platform"
+            if (Test-Path $dllSrc) {
+              Copy-Item $dllSrc -Destination "$destDir\dokan.dll"  -Force
+              Copy-Item $dllSrc -Destination "$destDir\dokan2.dll" -Force
+            }
+          }
+          Write-Host "Legacy dokan tree created for $platform"
+        }
+
+        # Strategy B: stage at dokany paths for when vstools does convert the references.
+        foreach ($platform in @("Win32", "x64")) {
+          $libSrc = "$dokanyRoot\dokan\$platform\Release\dokan2.lib"
+          if (Test-Path $libSrc) {
+            $destDir = "$dokanyRoot\$platform\Release"
+            New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+            Copy-Item $libSrc -Destination "$destDir\dokan2.lib" -Force
+            Copy-Item $libSrc -Destination "$destDir\dokan.lib"  -Force
+            Write-Host "Staged dokan2.lib -> $destDir"
           }
         }
 
@@ -170,6 +177,24 @@ jobs:
         } else {
           Write-Warning "dokan DLL not found; ewfmount may not run without it"
         }
+
+    - name: Diagnose ewfmount
+      working-directory: libewf
+      shell: pwsh
+      run: |
+        $vsDir = "vs${{ matrix.vs_version }}"
+        $conf  = "${{ matrix.configuration }}"
+        $plat  = "${{ matrix.platform }}"
+        $proj  = "$vsDir\ewfmount\ewfmount.vcxproj"
+        if (Test-Path $proj) {
+          Write-Host "=== ewfmount.vcxproj dokan references ==="
+          Get-Content $proj | Where-Object { $_ -match "(?i)dokan" } | Write-Host
+        } else {
+          Write-Warning "ewfmount.vcxproj was NOT generated (msvscpp_convert.py may not support --with-dokany)"
+        }
+        Write-Host "=== ewfmount.exe search ==="
+        Get-ChildItem -Path $vsDir -Recurse -Filter "ewfmount.exe" -ErrorAction SilentlyContinue |
+          Select-Object -ExpandProperty FullName
 
     - name: Run tests
       working-directory: libewf
