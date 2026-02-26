@@ -1,0 +1,113 @@
+# Build from source on Windows using MSBuild.
+name: build_windows
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+permissions: read-all
+jobs:
+  build_msbuild:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - target: 'vs2022'
+          vs_version: '2022'
+          platform: 'Win32'
+          configuration: 'Release'
+          vs_tools_options: '--extend-with-x64 --no-python-dll --with-dokany'
+        - target: 'vs2022-x64'
+          vs_version: '2022'
+          platform: 'x64'
+          configuration: 'Release'
+          vs_tools_options: '--extend-with-x64 --no-python-dll --with-dokany'
+        - target: 'vs2022-vsdebug'
+          vs_version: '2022'
+          platform: 'Win32'
+          configuration: 'VSDebug'
+          vs_tools_options: '--extend-with-x64 --no-python-dll --with-dokany'
+        - target: 'vs2022-python'
+          vs_version: '2022'
+          platform: 'x64'
+          configuration: 'Release'
+          vs_tools_options: '--extend-with-x64 --with-dokany'
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        path: libewf
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        architecture: 'x64'
+
+    - name: Set up MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Sync win_flex_bison
+      working-directory: libewf
+      shell: pwsh
+      run: .\syncwinflexbison.ps1
+
+    - name: Sync test data
+      working-directory: libewf
+      shell: pwsh
+      run: |
+        if (Test-Path ".\synctestdata.ps1") { .\synctestdata.ps1 }
+
+    - name: Sync zlib
+      working-directory: libewf
+      shell: pwsh
+      run: .\synczlib.ps1
+
+    - name: Clone bzip2
+      shell: pwsh
+      run: |
+        git clone https://github.com/joachimmetz/bzip2.git "${{ github.workspace }}\bzip2"
+
+    - name: Sync and build dokan
+      working-directory: libewf
+      shell: pwsh
+      run: |
+        .\syncdokan.ps1
+        $vcxproj = "${{ github.workspace }}\dokany\dokan\dokan.vcxproj"
+        if (Test-Path $vcxproj) {
+          (Get-Content $vcxproj -Raw) -Replace '<PlatformToolset>v14[0-9]</PlatformToolset>', '<PlatformToolset>v143</PlatformToolset>' | Set-Content $vcxproj
+        }
+        $env:APPVEYOR = "True"
+        .\builddokan.ps1 -Configuration Release -Platform Win32
+        .\builddokan.ps1 -Configuration Release -Platform x64
+
+    - name: Sync dependency libraries
+      working-directory: libewf
+      shell: pwsh
+      run: .\synclibs.ps1
+
+    - name: Generate build files
+      working-directory: libewf
+      shell: pwsh
+      run: .\autogen.ps1
+
+    - name: Build
+      working-directory: libewf
+      shell: pwsh
+      run: |
+        $PythonPath = (Get-Command python).Source | Split-Path
+        $Configuration = "${{ matrix.configuration }}"
+        if ($Configuration -eq "VSDebug") { $Configuration = "Debug" }
+        .\build.ps1 `
+          -VisualStudioVersion ${{ matrix.vs_version }} `
+          -Configuration $Configuration `
+          -Platform ${{ matrix.platform }} `
+          -PythonPath $PythonPath `
+          -VSToolsOptions "${{ matrix.vs_tools_options }}"
+
+    - name: Run tests
+      working-directory: libewf
+      shell: pwsh
+      run: .\runtests.ps1
