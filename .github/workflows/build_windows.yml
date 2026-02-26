@@ -122,3 +122,16 @@ jobs:
       working-directory: libewf
       shell: pwsh
       run: .\runtests.ps1
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: libewf-${{ matrix.target }}
+        path: |
+          libewf/vs${{ matrix.vs_version }}/${{ matrix.configuration }}/${{ matrix.platform }}/*.exe
+          libewf/vs${{ matrix.vs_version }}/${{ matrix.configuration }}/${{ matrix.platform }}/*.dll
+          libewf/vs${{ matrix.vs_version }}/${{ matrix.configuration }}/${{ matrix.platform }}/*.pdb
+          libewf/vs${{ matrix.vs_version }}/${{ matrix.configuration }}/*.exe
+          libewf/vs${{ matrix.vs_version }}/${{ matrix.configuration }}/*.dll
+          libewf/vs${{ matrix.vs_version }}/${{ matrix.configuration }}/*.pdb
+        if-no-files-found: warn
