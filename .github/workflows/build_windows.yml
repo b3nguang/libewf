@@ -86,6 +86,15 @@ jobs:
         .\builddokan.ps1 -Configuration Release -Platform Win32
         .\builddokan.ps1 -Configuration Release -Platform x64
         $dokanyRoot = "${{ github.workspace }}\dokany"
+        # vstools generates vcxproj referencing dokan1.lib; dokany v2 produces dokan2.lib.
+        # Create dokan1.lib aliases so the linker can find them.
+        foreach ($platform in @("Win32", "x64")) {
+          $src = "$dokanyRoot\dokan\$platform\Release\dokan2.lib"
+          if (Test-Path $src) {
+            Copy-Item $src -Destination "$dokanyRoot\dokan\$platform\Release\dokan1.lib" -Force
+            Write-Host "Created dokan1.lib alias for $platform"
+          }
+        }
         Write-Host "=== Dokan build output ==="
         Get-ChildItem -Path $dokanyRoot -Recurse -Include "dokan*.lib","dokan*.dll" -ErrorAction SilentlyContinue |
           Select-Object -ExpandProperty FullName
